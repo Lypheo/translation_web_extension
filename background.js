@@ -50,6 +50,9 @@ async function translateWithOpenAI(text) {
     return { service: 'OpenAI', text: 'API key or endpoint not set' };
   }
 
+  const promptTemplate = await getPrompt();
+  const prompt = promptTemplate.replaceAll('{{text}}', text);
+
   try {
     const response = await fetch(apiEndpoint, {
       method: 'POST',
@@ -60,8 +63,7 @@ async function translateWithOpenAI(text) {
       body: JSON.stringify({
         model: await getModel(),
         messages: [
-          { role: 'user', content: `Translate the given text into English. If it already is English, translate it into German instead. If the input consists of a single English word, output a short list of German words that best approximate the English meaning.
-Output nothing but the translated text. Input text: ${text}` }
+          { role: 'user', content: prompt }
         ]
       })
     });
@@ -77,6 +79,15 @@ function getApiKey(service) {
   return new Promise(resolve => {
     chrome.storage.sync.get([service], result => {
       resolve(result[service]);
+    });
+  });
+}
+
+function getPrompt() {
+  return new Promise(resolve => {
+    chrome.storage.sync.get(['openai_prompt'], result => {
+      const defaultPrompt = `Translate the given text into English. If it already is English, translate it into German instead. If the input consists of a single English word, output a short list of German words that best approximate the English meaning.\nOutput nothing but the translated text. Input text: {{text}}`;
+      resolve(result.openai_prompt || defaultPrompt);
     });
   });
 }

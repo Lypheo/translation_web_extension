@@ -16,7 +16,7 @@
       display: block;
       margin-top: 10px;
     }
-    input[type='text'] {
+    input[type='text'], textarea {
       width: 100%;
       padding: 8px;
       margin-top: 5px;
@@ -55,11 +55,12 @@
   <br>
   <label for="openai-api-model">Model:</label>
   <input type="text" id="openai-api-model">
+  <br>
+  <label for="openai-prompt">Prompt (use {{text}} as a placeholder):</label>
+  <textarea id="openai-prompt"></textarea>
 
-  <br><br>
   <button id="save">Save</button>
   <div id="status"></div>
-
   <script src="options.js"></script>
 </body>
 </html>
