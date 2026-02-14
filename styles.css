@@ -32,3 +32,38 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Screenshot selection styles */
+#screenshot-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: crosshair;
+  z-index: 99998;
+}
+
+.screenshot-instructions {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: sans-serif;
+  font-size: 14px;
+  z-index: 99999;
+}
+
+#screenshot-selection {
+  position: fixed;
+  border: 2px dashed #4285f4;
+  background: rgba(66, 133, 244, 0.2);
+  display: none;
+  z-index: 99999;
+  pointer-events: none;
+}

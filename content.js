@@ -1,5 +1,8 @@
 let buttonVisible = false;
 let popupVisible = false;
+let screenshotMode = false;
+let selectionStart = null;
+let selectionOverlay = null;
 
 document.addEventListener('mouseup', function(e) {
   if (popupVisible) {
@@ -147,10 +150,19 @@ function showPopup(x, y, selectedText) {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'screenshot-captured') {
+    // Show popup now that screenshot has been captured
+    showScreenshotPopup(request.popupX, request.popupY);
+  }
   if (request.type === 'translation-result') {
     const content = document.getElementById(`translation-content-${request.service}`);
     if (content) {
-      content.textContent = request.text;
+      // Render HTML for Screenshot translations, plain text for others
+      if (request.service === 'Screenshot') {
+        content.innerHTML = request.text;
+      } else {
+        content.textContent = request.text;
+      }
     }
     const popup = document.getElementById(`translation-popup`);
     ensurePopupInView(popup);
@@ -163,4 +175,157 @@ function hidePopup() {
     popup.remove();
   }
   popupVisible = false;
+}
+
+// Screenshot selection functionality
+document.addEventListener('keydown', function(e) {
+  // Alt+Shift+S to start screenshot selection
+  if (e.altKey&& e.key.toLowerCase() === 't') {
+    e.preventDefault();
+    startScreenshotSelection();
+  }
+  // Escape to cancel
+  if (e.key === 'Escape' && screenshotMode) {
+    cancelScreenshotSelection();
+  }
+});
+
+function startScreenshotSelection() {
+  if (screenshotMode) return;
+  screenshotMode = true;
+  
+  // Create overlay for visual feedback
+  const overlay = document.createElement('div');
+  overlay.id = 'screenshot-overlay';
+  overlay.innerHTML = '<div class="screenshot-instructions">Click and drag to select area for translation. Press Escape to cancel.</div>';
+  document.body.appendChild(overlay);
+  
+  // Create selection box
+  selectionOverlay = document.createElement('div');
+  selectionOverlay.id = 'screenshot-selection';
+  document.body.appendChild(selectionOverlay);
+  
+  document.addEventListener('mousedown', onScreenshotMouseDown);
+}
+
+function onScreenshotMouseDown(e) {
+  if (!screenshotMode) return;
+  e.preventDefault();
+  
+  selectionStart = { x: e.clientX, y: e.clientY };
+  
+  selectionOverlay.style.left = `${e.clientX}px`;
+  selectionOverlay.style.top = `${e.clientY}px`;
+  selectionOverlay.style.width = '0px';
+  selectionOverlay.style.height = '0px';
+  selectionOverlay.style.display = 'block';
+  
+  document.addEventListener('mousemove', onScreenshotMouseMove);
+  document.addEventListener('mouseup', onScreenshotMouseUp);
+}
+
+function onScreenshotMouseMove(e) {
+  if (!selectionStart) return;
+  
+  const x = Math.min(e.clientX, selectionStart.x);
+  const y = Math.min(e.clientY, selectionStart.y);
+  const width = Math.abs(e.clientX - selectionStart.x);
+  const height = Math.abs(e.clientY - selectionStart.y);
+  
+  selectionOverlay.style.left = `${x}px`;
+  selectionOverlay.style.top = `${y}px`;
+  selectionOverlay.style.width = `${width}px`;
+  selectionOverlay.style.height = `${height}px`;
+}
+
+function onScreenshotMouseUp(e) {
+  if (!selectionStart) return;
+  
+  document.removeEventListener('mousemove', onScreenshotMouseMove);
+  document.removeEventListener('mouseup', onScreenshotMouseUp);
+  document.removeEventListener('mousedown', onScreenshotMouseDown);
+  
+  const rect = {
+    x: Math.min(e.clientX, selectionStart.x),
+    y: Math.min(e.clientY, selectionStart.y),
+    width: Math.abs(e.clientX - selectionStart.x),
+    height: Math.abs(e.clientY - selectionStart.y)
+  };
+  
+  // Clean up selection UI
+  cleanupScreenshotSelection();
+  
+  // Only proceed if selection is large enough
+  if (rect.width > 10 && rect.height > 10) {
+    // Send message to background script to capture and translate
+    // Don't show popup yet - wait until screenshot is captured
+    chrome.runtime.sendMessage({
+      type: 'capture-screenshot',
+      rect: rect,
+      devicePixelRatio: window.devicePixelRatio,
+      popupX: rect.x + rect.width / 2 + window.scrollX,
+      popupY: rect.y + window.scrollY
+    });
+  }
+}
+
+function cancelScreenshotSelection() {
+  document.removeEventListener('mousemove', onScreenshotMouseMove);
+  document.removeEventListener('mouseup', onScreenshotMouseUp);
+  document.removeEventListener('mousedown', onScreenshotMouseDown);
+  cleanupScreenshotSelection();
+}
+
+function cleanupScreenshotSelection() {
+  screenshotMode = false;
+  selectionStart = null;
+  
+  const overlay = document.getElementById('screenshot-overlay');
+  if (overlay) overlay.remove();
+  
+  if (selectionOverlay) {
+    selectionOverlay.remove();
+    selectionOverlay = null;
+  }
+}
+
+function showScreenshotPopup(x, y) {
+  popupVisible = true;
+  const popup = document.createElement('div');
+  popup.id = 'translation-popup';
+  popup.style.position = 'absolute';
+  popup.style.top = `${y}px`;
+  popup.style.left = `${x}px`;
+  popup.style.zIndex = 10001;
+  popup.style.background = 'white';
+  popup.style.color = 'black';
+  popup.style.border = '1px solid black';
+  popup.style.padding = '10px';
+  popup.style.transform = 'translateX(-50%)';
+
+  const screenshotPane = document.createElement('div');
+  screenshotPane.id = 'translation-pane-Screenshot';
+
+  const header = document.createElement('div');
+  header.style.fontWeight = 'bold';
+  header.style.fontSize = '1.1em';
+  header.textContent = 'Screenshot Translation';
+
+  const content = document.createElement('div');
+  content.id = 'translation-content-Screenshot';
+  content.innerHTML = `<span class="loading"> </span>`;
+
+  screenshotPane.appendChild(header);
+  screenshotPane.appendChild(content);
+  popup.appendChild(screenshotPane);
+
+  document.body.appendChild(popup);
+  ensurePopupInView(popup);
+
+  document.addEventListener('mousedown', function hidePopupOnClick(e) {
+    if (!popup.contains(e.target)) {
+      hidePopup();
+      document.removeEventListener('mousedown', hidePopupOnClick);
+    }
+  });
 }
