@@ -33,8 +33,9 @@ function showButton(x, y, selectedText) {
     e.stopPropagation();
     // Show the popup immediately with loading indicators
     showPopup(x, y - 30, selectedText);
-    // Send the text to the background script for translation
+    // Send the text to the background script for translation (both services in parallel)
     chrome.runtime.sendMessage({ text: selectedText, service: 'DeepL' });
+    chrome.runtime.sendMessage({ text: selectedText, service: 'OpenAI' });
     hideButton();
   });
 
@@ -117,7 +118,7 @@ function showPopup(x, y, selectedText) {
   deepLPane.appendChild(deepLContent);
   popup.appendChild(deepLPane);
 
-  // OpenAI pane with a button
+  // OpenAI pane with loading indicator
   const openAIPane = document.createElement('div');
   openAIPane.id = 'translation-pane-OpenAI';
 
@@ -128,18 +129,8 @@ function showPopup(x, y, selectedText) {
 
   const openAIContent = document.createElement('div');
   openAIContent.id = 'translation-content-OpenAI';
-  const translateButton = document.createElement('button');
-  translateButton.textContent = 'Translate';
-  translateButton.style.marginTop = '5px';
-  translateButton.style.cursor = 'pointer';
-  
-  translateButton.addEventListener('click', (e) => {
-    e.stopPropagation();
-    chrome.runtime.sendMessage({ text: selectedText, service: 'OpenAI' });
-    openAIContent.innerHTML = `<span class="loading"> </span>`;
-  });
+  openAIContent.innerHTML = `<span class="loading"> </span>`;
 
-  openAIContent.appendChild(translateButton);
   openAIPane.appendChild(openAIHeader);
   openAIPane.appendChild(openAIContent);
   popup.appendChild(openAIPane);

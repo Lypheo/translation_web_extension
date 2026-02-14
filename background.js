@@ -62,6 +62,10 @@ async function translateWithOpenAI(text) {
       },
       body: JSON.stringify({
         model: await getModel(),
+        reasoning: {
+          effort: "none",
+          exclude: true,
+        },
         messages: [
           { role: 'user', content: prompt }
         ]
